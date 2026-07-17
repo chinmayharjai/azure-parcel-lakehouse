@@ -9,7 +9,7 @@ on.
 from __future__ import annotations
 
 import importlib.util
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -44,8 +44,10 @@ _SILVER = StructType([
 
 
 def _row(pid, seq, stype, hub="HUB-001", ooo=False):
+    # event_time monotonic in seq via a timedelta, so it stays valid for large seq
+    # (the capping test runs well past 24 events).
     return (pid, f"{pid}-{seq}", "LANE-1", "SLR-1", hub, stype,
-            datetime(2026, 6, 1, 8 + seq, 0), seq, ooo, 24)
+            datetime(2026, 6, 1) + timedelta(hours=seq), seq, ooo, 24)
 
 
 def _df(spark, rows):
