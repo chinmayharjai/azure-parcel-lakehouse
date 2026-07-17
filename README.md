@@ -16,7 +16,7 @@ run, and every injected data defect is counted on the emitted files, not asserte
 | # | Milestone | Status |
 |---|-----------|--------|
 | M1 | Parcel scan simulator (arrival-time partitioned) | ✅ |
-| M2 | ADF ingestion pipelines | ⬜ |
+| M2 | ADF ingestion pipelines | ✅ |
 | M3 | Lakehouse bronze + silver | ⬜ |
 | M4 | Lakehouse gold (ops + SLA mart) | ⬜ |
 | M5 | Serving: Azure SQL + Cosmos DB | ⬜ |

@@ -1,0 +1,8 @@
+{
+  "name": "shir_onprem",
+  "type": "Microsoft.DataFactory/factories/integrationruntimes",
+  "properties": {
+    "type": "SelfHosted",
+    "description": "Self-Hosted Integration Runtime: the agent installed on a machine inside the corporate network that bridges ADF to the on-prem SQL Server. It dials OUT to ADF over HTTPS 443, so the database stays behind the firewall with no inbound port exposed. Registered with an auth key (stored in Key Vault, rotated on a schedule), and ideally run as two nodes for high availability so a single host reboot does not stall ingestion. The Azure-SQL stand-in used for local demos swaps this for AutoResolveIntegrationRuntime — the only line that changes between 'reaches on-prem' and 'reaches cloud'."
+  }
+}

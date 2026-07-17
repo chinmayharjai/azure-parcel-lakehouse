@@ -1,0 +1,31 @@
+{
+  "name": "ls_onprem_sql",
+  "type": "Microsoft.DataFactory/factories/linkedservices",
+  "properties": {
+    "annotations": [],
+    "description": "The seller master lives in an on-prem SQL Server behind the corporate firewall. ADF reaches it through a Self-Hosted Integration Runtime — an agent installed on a machine inside that network which makes an OUTBOUND connection to ADF, so no inbound firewall port is opened. The cloud never connects to the database directly; the SHIR pulls and pushes. In this portfolio build the same linked service can point at an Azure SQL stand-in (swap connectVia to AutoResolveIntegrationRuntime) to demo without standing up an on-prem host, but the shape here is the real on-prem pattern: SHIR + Key Vault connection string.",
+    "type": "SqlServer",
+    "typeProperties": {
+      "connectionString": {
+        "type": "AzureKeyVaultSecret",
+        "store": {
+          "referenceName": "ls_keyvault",
+          "type": "LinkedServiceReference",
+          "parameters": {
+            "keyVaultName": "@linkedService().keyVaultName"
+          }
+        },
+        "secretName": "onprem-sql-connection-string"
+      }
+    },
+    "connectVia": {
+      "referenceName": "shir_onprem",
+      "type": "IntegrationRuntimeReference"
+    },
+    "parameters": {
+      "keyVaultName": {
+        "type": "String"
+      }
+    }
+  }
+}

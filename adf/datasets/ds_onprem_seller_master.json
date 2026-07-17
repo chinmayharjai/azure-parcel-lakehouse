@@ -1,0 +1,23 @@
+{
+  "name": "ds_onprem_seller_master",
+  "type": "Microsoft.DataFactory/factories/datasets",
+  "properties": {
+    "annotations": [],
+    "description": "The seller master as a table in the on-prem SQL Server, read through the SHIR. A table dataset (not a query) so ADF can push a schema-aware read; the pipeline supplies an incremental predicate via the source query when it wants only changed rows.",
+    "linkedServiceName": {
+      "referenceName": "ls_onprem_sql",
+      "type": "LinkedServiceReference",
+      "parameters": {
+        "keyVaultName": "@dataset().keyVaultName"
+      }
+    },
+    "parameters": {
+      "keyVaultName": { "type": "String" }
+    },
+    "type": "SqlServerTable",
+    "typeProperties": {
+      "schema": "dbo",
+      "table": "seller_master"
+    }
+  }
+}

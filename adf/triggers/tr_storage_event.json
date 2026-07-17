@@ -1,0 +1,29 @@
+{
+  "name": "tr_storage_event",
+  "type": "Microsoft.DataFactory/factories/triggers",
+  "properties": {
+    "description": "Low-latency path. Fires on blob-created for a batch file landing under landing/scans/, and extracts dt/hour from the blob path so the pipeline processes exactly the hour that just arrived. This is what makes 'where is my parcel' fresh within minutes instead of up to an hour. Scoped tightly with blobPathBeginsWith/EndsWith so it fires once per batch file, not on the log or _manifest writes. Requires the Microsoft.EventGrid resource provider registered on the subscription — a common first-deploy gotcha called out in the M7 runbook.",
+    "type": "BlobEventsTrigger",
+    "typeProperties": {
+      "blobPathBeginsWith": "/landing/blobs/scans/",
+      "blobPathEndsWith": ".json.gz",
+      "ignoreEmptyBlobs": true,
+      "scope": "/subscriptions/{subscriptionId}/resourceGroups/{rg}/providers/Microsoft.Storage/storageAccounts/{storageAccountName}",
+      "events": ["Microsoft.Storage.BlobCreated"]
+    },
+    "pipelines": [
+      {
+        "pipelineReference": {
+          "referenceName": "pl_ingest_scans_landing_to_bronze",
+          "type": "PipelineReference"
+        },
+        "parameters": {
+          "storageAccountName": "@pipeline().globalParameters.storageAccountName",
+          "dt": "@substring(triggerBody().folderPath, add(indexOf(triggerBody().folderPath, 'dt='), 3), 10)",
+          "hour": "@substring(triggerBody().folderPath, add(indexOf(triggerBody().folderPath, 'hour='), 5), 2)",
+          "alertWebhookUrl": "@pipeline().globalParameters.alertWebhookUrl"
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "name": "ds_bronze_seller_master",
+  "type": "Microsoft.DataFactory/factories/datasets",
+  "properties": {
+    "annotations": [],
+    "description": "The seller master landed into bronze as Parquet. Unlike the scan batches (kept as raw binary), the seller extract is already tabular and trusted, so it is written column-typed as Parquet — silver joins against it, and a typed columnar file makes that join cheap. Snapshot-per-run under snapshot_date=, so a bad extract can be diffed against yesterday's rather than overwriting the only good copy.",
+    "linkedServiceName": {
+      "referenceName": "ls_adls_gen2",
+      "type": "LinkedServiceReference",
+      "parameters": {
+        "storageAccountName": "@dataset().storageAccountName"
+      }
+    },
+    "parameters": {
+      "storageAccountName": { "type": "String" },
+      "snapshot_date": { "type": "String" }
+    },
+    "type": "Parquet",
+    "typeProperties": {
+      "location": {
+        "type": "AzureBlobFSLocation",
+        "fileSystem": "bronze",
+        "folderPath": "@{concat('seller_master/snapshot_date=', dataset().snapshot_date)}"
+      },
+      "compressionCodec": "snappy"
+    }
+  }
+}

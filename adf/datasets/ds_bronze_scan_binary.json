@@ -1,0 +1,31 @@
+{
+  "name": "ds_bronze_scan_binary",
+  "type": "Microsoft.DataFactory/factories/datasets",
+  "properties": {
+    "annotations": [],
+    "description": "The bronze sink for the raw scan bytes. Same Binary type and same dt=/hour= partitioning as landing, so the copy is a straight passthrough and bronze remains partition-aligned with landing for replay. Keeping the partition path identical is what lets a failed hour be re-copied by re-running the pipeline with the same parameters — the target path is a pure function of (dt, hour), so a rerun overwrites rather than duplicates.",
+    "linkedServiceName": {
+      "referenceName": "ls_adls_gen2",
+      "type": "LinkedServiceReference",
+      "parameters": {
+        "storageAccountName": "@dataset().storageAccountName"
+      }
+    },
+    "parameters": {
+      "storageAccountName": { "type": "String" },
+      "dt": { "type": "String" },
+      "hour": { "type": "String" }
+    },
+    "type": "Binary",
+    "typeProperties": {
+      "location": {
+        "type": "AzureBlobFSLocation",
+        "fileSystem": "bronze",
+        "folderPath": "@{concat('scans/dt=', dataset().dt, '/hour=', dataset().hour)}"
+      },
+      "compression": {
+        "type": "GZip"
+      }
+    }
+  }
+}
