@@ -184,7 +184,11 @@ def test_ops_counts_late_arrival_scans(spark):
     df = _df(spark, rows)
     lc = gold_common.parcel_lifecycle(df)
     agg = ops.hub_hourly_ops(df, lc)
-    late = {r["hub_id"]: r["late_arrival_scans"] for r in agg.collect()}
+    # The two HUB-007 scans are in different hours (8 and 9), so they land in two
+    # (hub, hour) rows — sum across them per hub, don't keep only the last.
+    late: dict[str, int] = {}
+    for r in agg.collect():
+        late[r["hub_id"]] = late.get(r["hub_id"], 0) + r["late_arrival_scans"]
     assert late.get("HUB-007", 0) == 2     # the late-sync hub shows as the hole it is
     assert late.get("HUB-001", 0) == 0
 
