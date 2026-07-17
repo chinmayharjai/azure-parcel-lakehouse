@@ -27,9 +27,6 @@ jobs:
       - name: adf definition tests
         run: |
           if [ -d adf/tests ]; then pytest adf/tests -q; else echo "no adf tests yet"; fi
-      - name: data-quality tests
-        run: |
-          if [ -d quality/tests ]; then pytest quality/tests -q; else echo "no quality tests yet"; fi
 
   spark:
     name: databricks transforms (chispa)
@@ -51,3 +48,6 @@ jobs:
       - name: serving / cosmos tests
         run: |
           if [ -d serving/tests ]; then pytest serving/tests -q; else echo "no serving tests yet"; fi
+      - name: data-quality tests (Spark-based)
+        run: |
+          if [ -d quality/tests ]; then pytest quality/tests -q; else echo "no quality tests yet"; fi

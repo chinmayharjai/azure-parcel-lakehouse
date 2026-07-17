@@ -20,7 +20,7 @@ run, and every injected data defect is counted on the emitted files, not asserte
 | M3 | Lakehouse bronze + silver | ✅ |
 | M4 | Lakehouse gold (ops + SLA mart) | ✅ |
 | M5 | Serving: Azure SQL + Cosmos DB | ✅ |
-| M6 | Data quality + control totals | ⬜ |
+| M6 | Data quality + control totals | ✅ |
 | M7 | Monitoring + runbooks | ⬜ |
 | M8 | Final README + results | ⬜ |
 
