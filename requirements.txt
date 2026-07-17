@@ -1,0 +1,13 @@
+# Simulator + DQ checks
+pandas==2.2.3
+
+# Databricks jobs (run on cluster; local for chispa tests)
+pyspark==3.5.4
+delta-spark==3.2.1
+
+# Cosmos writer
+azure-cosmos==4.9.0
+
+# Testing
+pytest==8.3.4
+chispa==0.10.1

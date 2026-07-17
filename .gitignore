@@ -1,0 +1,37 @@
+# Generated data — regenerate with `python simulator/scan_events.py`
+data/
+*.json.gz
+*.parquet
+
+# ...but keep the manifest: it is the evidence behind every count in the README.
+!data/_manifest.json
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# Spark / Delta
+spark-warehouse/
+metastore_db/
+derby.log
+checkpoints/
+
+# Azure — never commit credentials or local settings
+*.publishsettings
+local.settings.json
+.azure/
+*.pfx
+*.pem
+.env
+
+# ADF exports sometimes carry a factory-scoped GUID file; keep pipelines only
+adf/.pipeline_runs/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

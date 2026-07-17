@@ -1,0 +1,50 @@
+name: tests
+
+# Runs on every PR and on main. Two jobs, split by what they need:
+#   - simulator/DQ tests are pure Python (fast, no JVM)
+#   - the Databricks transform tests need Spark, hence Java — kept separate so a
+#     simulator change doesn't wait on a Spark cluster spin-up, and a green
+#     simulator job is a clear signal on its own.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  python:
+    name: simulator + dq (pure python)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: simulator tests
+        run: pytest simulator/tests -q
+      - name: data-quality tests
+        run: |
+          if [ -d quality/tests ]; then pytest quality/tests -q; else echo "no quality tests yet"; fi
+
+  spark:
+    name: databricks transforms (chispa)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: transform tests
+        run: |
+          if [ -d databricks/tests ]; then pytest databricks/tests -q; else echo "no spark tests yet"; fi
+      - name: serving / cosmos tests
+        run: |
+          if [ -d serving/tests ]; then pytest serving/tests -q; else echo "no serving tests yet"; fi
