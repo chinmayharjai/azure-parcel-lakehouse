@@ -1,0 +1,27 @@
+{
+  "name": "ls_databricks",
+  "type": "Microsoft.DataFactory/factories/linkedservices",
+  "properties": {
+    "annotations": [],
+    "description": "The Databricks workspace that runs the medallion transforms and the serve-to-SQL job. ADF authenticates with an access token fetched from Key Vault (in production, prefer a managed-identity linked service over a PAT — the token here is the portable form). Runs jobs on an existing interactive cluster id passed per environment, or swap to a new-job-cluster spec for isolated, auto-terminating runs.",
+    "type": "AzureDatabricks",
+    "typeProperties": {
+      "domain": "@{concat('https://', linkedService().workspaceUrl)}",
+      "accessToken": {
+        "type": "AzureKeyVaultSecret",
+        "store": {
+          "referenceName": "ls_keyvault",
+          "type": "LinkedServiceReference",
+          "parameters": { "keyVaultName": "@linkedService().keyVaultName" }
+        },
+        "secretName": "databricks-access-token"
+      },
+      "existingClusterId": "@linkedService().clusterId"
+    },
+    "parameters": {
+      "keyVaultName": { "type": "String" },
+      "workspaceUrl": { "type": "String" },
+      "clusterId": { "type": "String" }
+    }
+  }
+}

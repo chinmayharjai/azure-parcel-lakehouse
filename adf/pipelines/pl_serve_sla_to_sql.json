@@ -1,0 +1,101 @@
+{
+  "name": "pl_serve_sla_to_sql",
+  "type": "Microsoft.DataFactory/factories/pipelines",
+  "properties": {
+    "description": "Publish the gold SLA star to Azure SQL, gated on a row-count match. Runs the Databricks serve job (JDBC write of fct_sla + dims, dims first for the FKs), then Looks up the landed fct_sla count in SQL and compares it to the count the job reported writing. A mismatch means a short-write — the copy-integrity failure finance must never compute on — so the pipeline fails and nothing downstream reads the mart. This is the COPY-integrity gate; the M6 control total adds the SEMANTIC delivered-count gate.",
+    "activities": [
+      {
+        "name": "ServeToSql",
+        "type": "DatabricksNotebook",
+        "description": "Runs serving/azure_sql/load_mart via a thin notebook wrapper that returns the fct_sla row count it wrote, through dbutils.notebook.exit, so ADF can compare it to what actually landed.",
+        "dependsOn": [],
+        "policy": { "timeout": "0.01:00:00", "retry": 2, "retryIntervalInSeconds": 60 },
+        "linkedServiceName": {
+          "referenceName": "ls_databricks",
+          "type": "LinkedServiceReference",
+          "parameters": {
+            "keyVaultName": "@pipeline().globalParameters.keyVaultName",
+            "workspaceUrl": "@pipeline().globalParameters.databricksWorkspaceUrl",
+            "clusterId": "@pipeline().globalParameters.databricksClusterId"
+          }
+        },
+        "typeProperties": {
+          "notebookPath": "/Repos/parcel-lakehouse/serving/azure_sql/serve_sla_to_sql",
+          "baseParameters": {
+            "gold_sla_path": "@pipeline().parameters.goldSlaPath",
+            "sql_server": "@pipeline().globalParameters.sqlServer",
+            "sql_database": "@pipeline().globalParameters.sqlDatabase"
+          }
+        }
+      },
+      {
+        "name": "LookupSqlCount",
+        "type": "Lookup",
+        "description": "Count the rows that actually landed in dbo.fct_sla.",
+        "dependsOn": [
+          { "activity": "ServeToSql", "dependencyConditions": ["Succeeded"] }
+        ],
+        "policy": { "timeout": "0.00:10:00", "retry": 2, "retryIntervalInSeconds": 30 },
+        "typeProperties": {
+          "source": {
+            "type": "AzureSqlSource",
+            "sqlReaderQuery": "SELECT COUNT(*) AS cnt FROM dbo.fct_sla"
+          },
+          "dataset": {
+            "referenceName": "ds_azure_sql_fct_sla",
+            "type": "DatasetReference",
+            "parameters": { "keyVaultName": "@pipeline().globalParameters.keyVaultName" }
+          },
+          "firstRowOnly": true
+        }
+      },
+      {
+        "name": "GateOnRowCountMatch",
+        "type": "IfCondition",
+        "description": "The pre-publish gate: the count the job wrote must equal the count that landed. If not, fail. Expression compares the notebook's returned fct_rows to the SQL COUNT(*).",
+        "dependsOn": [
+          { "activity": "LookupSqlCount", "dependencyConditions": ["Succeeded"] }
+        ],
+        "typeProperties": {
+          "expression": {
+            "value": "@equals(int(activity('ServeToSql').output.runOutput.fct_rows), int(activity('LookupSqlCount').output.firstRow.cnt))",
+            "type": "Expression"
+          },
+          "ifFalseActivities": [
+            {
+              "name": "AlertRowCountMismatch",
+              "type": "WebActivity",
+              "dependsOn": [],
+              "policy": { "timeout": "0.00:05:00", "retry": 1, "retryIntervalInSeconds": 15 },
+              "typeProperties": {
+                "url": "@pipeline().globalParameters.alertWebhookUrl",
+                "method": "POST",
+                "body": {
+                  "pipeline": "@{pipeline().Pipeline}",
+                  "runId": "@{pipeline().RunId}",
+                  "severity": "critical",
+                  "message": "SLA mart serve BLOCKED: gold->SQL row count mismatch (short write); finance publication halted"
+                }
+              }
+            },
+            {
+              "name": "FailPublication",
+              "type": "Fail",
+              "dependsOn": [
+                { "activity": "AlertRowCountMismatch", "dependencyConditions": ["Completed"] }
+              ],
+              "typeProperties": {
+                "message": "gold->Azure SQL row-count mismatch for @{pipeline().parameters.goldSlaPath}; copy-integrity gate failed",
+                "errorCode": "ServeRowCountMismatch"
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "parameters": {
+      "goldSlaPath": { "type": "String" }
+    },
+    "annotations": ["serving", "azure-sql"]
+  }
+}

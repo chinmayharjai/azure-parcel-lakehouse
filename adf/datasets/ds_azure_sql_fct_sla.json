@@ -1,0 +1,21 @@
+{
+  "name": "ds_azure_sql_fct_sla",
+  "type": "Microsoft.DataFactory/factories/datasets",
+  "properties": {
+    "annotations": [],
+    "description": "The landed fct_sla table in Azure SQL, used by the serve pipeline's Lookup to count rows after the load for the copy-integrity gate.",
+    "linkedServiceName": {
+      "referenceName": "ls_azure_sql",
+      "type": "LinkedServiceReference",
+      "parameters": { "keyVaultName": "@dataset().keyVaultName" }
+    },
+    "parameters": {
+      "keyVaultName": { "type": "String" }
+    },
+    "type": "AzureSqlTable",
+    "typeProperties": {
+      "schema": "dbo",
+      "table": "fct_sla"
+    }
+  }
+}
