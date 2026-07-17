@@ -1,0 +1,52 @@
+{
+  "generated_at_utc": "2026-07-17T20:55:40+00:00",
+  "seed": 42,
+  "window": {
+    "start": "2026-05-31",
+    "end": "2026-06-30",
+    "days": 30
+  },
+  "network": {
+    "hubs": 40,
+    "lanes": 300,
+    "sellers": 5000,
+    "late_sync_hub": "HUB-007"
+  },
+  "parcels": 200000,
+  "scan_events_emitted": 1604238,
+  "terminal_state_distribution": {
+    "DELIVERED": 190014,
+    "FAILED_ATTEMPT": 6,
+    "OFD": 6,
+    "RTO_DELIVERED": 9892,
+    "RTO_INITIATED": 82
+  },
+  "note": "Counts measured on emitted files. arrival_inversions is recounted from the files (event-order neighbours whose sync order is reversed), not from the injection counter, because window-edge trimming can remove one side of an injected inversion.",
+  "injected_problems": {
+    "arrival_inversions": {
+      "count": 70283,
+      "parcels_affected": 61691,
+      "rate_knob": 0.05,
+      "detail": "A scan syncs after its successor, so arrival order != event order. Any consumer trusting arrival order derives wrong parcel states \u2014 measured by the M6 control-total experiment."
+    },
+    "duplicate_scans": {
+      "count": 31615,
+      "rate_knob": 0.02,
+      "detail": "Same scan_id re-uploaded with a later sync_time. Dedup must key on scan_id keeping first-by-event/latest-by-sync."
+    },
+    "parcels_missing_scan": {
+      "count": 5962,
+      "rate_knob": 0.03,
+      "detail": "One intermediate HUB_IN/HUB_OUT missing; trail has a gap but valid endpoints."
+    },
+    "late_sync_hub_scans": {
+      "count": 38312,
+      "hub": "HUB-007",
+      "detail": "Every scan at this hub syncs 2-8h late \u2014 a systematic uplink problem, visible as a hub-shaped hole in arrival dashboards."
+    },
+    "pii_phone_on_every_event": {
+      "count": 1604238,
+      "detail": "customer_phone rides on every scan event and must be masked in silver with a restricted mapping table."
+    }
+  }
+}
