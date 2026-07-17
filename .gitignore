@@ -1,5 +1,7 @@
 # Generated data — regenerate with `python simulator/scan_events.py`
-data/
+# Use data/* (not data/) so the negation below can re-include the manifest — a
+# blanket `data/` ignore excludes the whole directory and no !rule inside it works.
+data/*
 *.json.gz
 *.parquet
 
