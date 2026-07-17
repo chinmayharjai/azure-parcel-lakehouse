@@ -27,9 +27,12 @@ def hub_hourly_ops(silver: DataFrame, lifecycle: DataFrame) -> DataFrame:
     honest 'at risk right now' signal — a parcel delivered an hour later was still at
     risk at this scan, and a parcel already delivered is not at risk regardless of age.
     """
-    # Join each scan to its parcel's lifecycle for the pickup anchor and promise.
+    # Join each scan to its parcel's lifecycle for the pickup anchor and the delivery
+    # time. NOT promised_hours — every silver scan already carries it (it's constant
+    # per parcel), and pulling it from both sides makes the reference ambiguous. Use
+    # silver's own.
     j = silver.join(
-        lifecycle.select("parcel_id", "pickup_time", "promised_hours", "delivered_time"),
+        lifecycle.select("parcel_id", "pickup_time", "delivered_time"),
         on="parcel_id", how="left",
     )
 

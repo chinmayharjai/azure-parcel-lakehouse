@@ -8,7 +8,7 @@ on and the thing M6 will measure.
 from __future__ import annotations
 
 import importlib.util
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -45,7 +45,12 @@ _SILVER = StructType([
 
 
 def _t(day, h):
-    return datetime(2026, 6, day, h, 0, tzinfo=timezone.utc)
+    # Naive UTC, deliberately: the session timezone is UTC (see conftest), and PySpark
+    # returns TimestampType to the driver as naive Python datetimes in that zone. A
+    # tz-aware expected value would never equal the naive value Spark hands back, even
+    # though both mean the same instant. Building naive keeps input and expected in the
+    # same representation Spark uses.
+    return datetime(2026, 6, day, h, 0)
 
 
 def _scan(pid, stype, ev_day, ev_h, promised=24, hub="HUB-001", lane="LANE-1",
