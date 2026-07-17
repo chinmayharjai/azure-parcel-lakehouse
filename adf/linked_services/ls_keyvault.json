@@ -1,0 +1,17 @@
+{
+  "name": "ls_keyvault",
+  "type": "Microsoft.DataFactory/factories/linkedservices",
+  "properties": {
+    "annotations": [],
+    "description": "The one place a secret is named. Every other linked service references THIS to fetch its secret at runtime, so no credential is ever stored in a pipeline, dataset, or ARM parameter file. The factory's managed identity is granted 'Key Vault Secrets User' on the vault; that grant is the only trust relationship, and it is revocable in one place.",
+    "type": "AzureKeyVault",
+    "typeProperties": {
+      "baseUrl": "@{concat('https://', linkedService().keyVaultName, '.vault.azure.net/')}"
+    },
+    "parameters": {
+      "keyVaultName": {
+        "type": "String"
+      }
+    }
+  }
+}

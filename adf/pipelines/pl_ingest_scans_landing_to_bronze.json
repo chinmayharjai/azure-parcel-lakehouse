@@ -1,0 +1,145 @@
+{
+  "name": "pl_ingest_scans_landing_to_bronze",
+  "type": "Microsoft.DataFactory/factories/pipelines",
+  "properties": {
+    "description": "Copy one hour's scan batches from landing to bronze as raw gzipped bytes. Parameterized by (dt, hour) so it is the unit both the hourly schedule and the storage-event trigger invoke, and so a rerun of a given hour overwrites its own partition (idempotent). Structure: verify the source exists -> binary copy with logging and retry -> on any failure, push an alert AND fail the run so the ADF metric alarm also fires.",
+    "activities": [
+      {
+        "name": "CheckLandingExists",
+        "type": "GetMetadata",
+        "description": "Fail fast with a clear reason if the hour's landing folder is missing, rather than letting Copy emit a confusing empty-source success. A storage-event trigger cannot fire on a folder that is not there, but the hourly schedule can run for an hour that received nothing.",
+        "dependsOn": [],
+        "policy": {
+          "timeout": "0.00:10:00",
+          "retry": 2,
+          "retryIntervalInSeconds": 30
+        },
+        "typeProperties": {
+          "dataset": {
+            "referenceName": "ds_landing_scan_binary",
+            "type": "DatasetReference",
+            "parameters": {
+              "storageAccountName": "@pipeline().parameters.storageAccountName",
+              "dt": "@pipeline().parameters.dt",
+              "hour": "@pipeline().parameters.hour"
+            }
+          },
+          "fieldList": ["exists", "childItems"]
+        }
+      },
+      {
+        "name": "CopyLandingToBronze",
+        "type": "Copy",
+        "description": "Binary passthrough copy. No parsing: bronze must be a byte-faithful, replayable copy of what the source sent. Logging is enabled so every copied file is recorded to a session log for audit and for reconciling file counts against the manifest.",
+        "dependsOn": [
+          { "activity": "CheckLandingExists", "dependencyConditions": ["Succeeded"] }
+        ],
+        "policy": {
+          "timeout": "0.01:00:00",
+          "retry": 3,
+          "retryIntervalInSeconds": 60,
+          "secureOutput": false,
+          "secureInput": false
+        },
+        "typeProperties": {
+          "source": {
+            "type": "BinarySource",
+            "storeSettings": {
+              "type": "AzureBlobFSReadSettings",
+              "recursive": true,
+              "wildcardFileName": "*.json.gz"
+            }
+          },
+          "sink": {
+            "type": "BinarySink",
+            "storeSettings": {
+              "type": "AzureBlobFSWriteSettings"
+            }
+          },
+          "enableLogging": true,
+          "logSettings": {
+            "enableCopyActivityLog": true,
+            "copyActivityLogSettings": {
+              "logLevel": "Warning",
+              "enableReliableLogging": false
+            },
+            "logLocationSettings": {
+              "linkedServiceName": {
+                "referenceName": "ls_adls_gen2",
+                "type": "LinkedServiceReference",
+                "parameters": { "storageAccountName": "@pipeline().parameters.storageAccountName" }
+              },
+              "path": "logs/copy/pl_ingest_scans_landing_to_bronze"
+            }
+          }
+        },
+        "inputs": [
+          {
+            "referenceName": "ds_landing_scan_binary",
+            "type": "DatasetReference",
+            "parameters": {
+              "storageAccountName": "@pipeline().parameters.storageAccountName",
+              "dt": "@pipeline().parameters.dt",
+              "hour": "@pipeline().parameters.hour"
+            }
+          }
+        ],
+        "outputs": [
+          {
+            "referenceName": "ds_bronze_scan_binary",
+            "type": "DatasetReference",
+            "parameters": {
+              "storageAccountName": "@pipeline().parameters.storageAccountName",
+              "dt": "@pipeline().parameters.dt",
+              "hour": "@pipeline().parameters.hour"
+            }
+          }
+        ]
+      },
+      {
+        "name": "AlertOnFailure",
+        "type": "WebActivity",
+        "description": "Push a compact alert to the ops webhook (a Logic App / Teams connector URL, supplied as a secure parameter sourced from Key Vault in prod). This is the proactive notification; the Fail activity after it makes the run status Failed so the ADF pipeline-failed metric alarm (wired in M7) also fires. Two independent signals, because a webhook can be down exactly when you need it.",
+        "dependsOn": [
+          { "activity": "CopyLandingToBronze", "dependencyConditions": ["Failed"] }
+        ],
+        "policy": {
+          "timeout": "0.00:05:00",
+          "retry": 1,
+          "retryIntervalInSeconds": 15
+        },
+        "typeProperties": {
+          "url": "@pipeline().parameters.alertWebhookUrl",
+          "method": "POST",
+          "body": {
+            "pipeline": "@{pipeline().Pipeline}",
+            "runId": "@{pipeline().RunId}",
+            "dataFactory": "@{pipeline().DataFactory}",
+            "partition": "dt=@{pipeline().parameters.dt}/hour=@{pipeline().parameters.hour}",
+            "severity": "high",
+            "message": "landing->bronze scan copy failed after 3 retries"
+          }
+        }
+      },
+      {
+        "name": "FailPipeline",
+        "type": "Fail",
+        "description": "Propagate the failure so the run is marked Failed for the metric alarm and so the trigger's own retry can re-invoke this hour.",
+        "dependsOn": [
+          { "activity": "AlertOnFailure", "dependencyConditions": ["Completed"] }
+        ],
+        "typeProperties": {
+          "message": "landing->bronze copy failed for dt=@{pipeline().parameters.dt}/hour=@{pipeline().parameters.hour}",
+          "errorCode": "IngestScanCopyFailed"
+        }
+      }
+    ],
+    "parameters": {
+      "storageAccountName": { "type": "String" },
+      "dt": { "type": "String" },
+      "hour": { "type": "String" },
+      "alertWebhookUrl": { "type": "String" }
+    },
+    "annotations": ["ingestion", "bronze"]
+  }
+}

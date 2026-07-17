@@ -1,0 +1,17 @@
+{
+  "name": "ls_adls_gen2",
+  "type": "Microsoft.DataFactory/factories/linkedservices",
+  "properties": {
+    "annotations": [],
+    "description": "The lake: landing, bronze, silver, gold all live in one ADLS Gen2 account, separated by container/path, not by account. Authenticated by the factory's system-assigned managed identity — no account key, no SAS token, nothing that expires or leaks. The account URL is a parameter so dev and prod point at different storage without a second copy of this file.",
+    "type": "AzureBlobFS",
+    "typeProperties": {
+      "url": "@{concat('https://', linkedService().storageAccountName, '.dfs.core.windows.net')}"
+    },
+    "parameters": {
+      "storageAccountName": {
+        "type": "String"
+      }
+    }
+  }
+}

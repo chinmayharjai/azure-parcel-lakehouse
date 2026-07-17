@@ -1,0 +1,30 @@
+{
+  "name": "tr_hourly_schedule",
+  "type": "Microsoft.DataFactory/factories/triggers",
+  "properties": {
+    "description": "Hourly safety net. Fires at :10 past every hour and processes the PREVIOUS hour, passing dt/hour derived from the trigger's scheduled time. The storage-event trigger handles the common case (a batch lands, process it immediately); this schedule catches the hour that the event trigger missed — a dropped event notification, or a batch that landed during an ADF outage. Belt and suspenders: events for latency, schedule for completeness.",
+    "type": "ScheduleTrigger",
+    "typeProperties": {
+      "recurrence": {
+        "frequency": "Hour",
+        "interval": 1,
+        "startTime": "2026-07-01T00:10:00Z",
+        "timeZone": "UTC"
+      }
+    },
+    "pipelines": [
+      {
+        "pipelineReference": {
+          "referenceName": "pl_ingest_scans_landing_to_bronze",
+          "type": "PipelineReference"
+        },
+        "parameters": {
+          "storageAccountName": "@pipeline().globalParameters.storageAccountName",
+          "dt": "@formatDateTime(subtractFromTime(trigger().scheduledTime, 1, 'Hour'), 'yyyy-MM-dd')",
+          "hour": "@formatDateTime(subtractFromTime(trigger().scheduledTime, 1, 'Hour'), 'HH')",
+          "alertWebhookUrl": "@pipeline().globalParameters.alertWebhookUrl"
+        }
+      }
+    ]
+  }
+}

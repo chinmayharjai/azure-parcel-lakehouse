@@ -1,0 +1,31 @@
+{
+  "name": "ds_landing_scan_binary",
+  "type": "Microsoft.DataFactory/factories/datasets",
+  "properties": {
+    "annotations": [],
+    "description": "The landing batch as an opaque Binary dataset, on purpose. The landing->bronze copy does NOT parse the JSON — it moves the gzipped bytes verbatim so bronze is a faithful, replayable copy of exactly what the source sent. Parsing happens in the Databricks silver step where a rescue column can catch what the schema misses. A DelimitedText/Json dataset here would force ADF to interpret the file and would drop a malformed line on the floor before bronze ever saw it, defeating the point of a raw landing zone.",
+    "linkedServiceName": {
+      "referenceName": "ls_adls_gen2",
+      "type": "LinkedServiceReference",
+      "parameters": {
+        "storageAccountName": "@dataset().storageAccountName"
+      }
+    },
+    "parameters": {
+      "storageAccountName": { "type": "String" },
+      "dt": { "type": "String" },
+      "hour": { "type": "String" }
+    },
+    "type": "Binary",
+    "typeProperties": {
+      "location": {
+        "type": "AzureBlobFSLocation",
+        "fileSystem": "landing",
+        "folderPath": "@{concat('scans/dt=', dataset().dt, '/hour=', dataset().hour)}"
+      },
+      "compression": {
+        "type": "GZip"
+      }
+    }
+  }
+}

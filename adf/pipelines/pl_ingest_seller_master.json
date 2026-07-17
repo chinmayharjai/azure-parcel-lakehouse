@@ -1,0 +1,104 @@
+{
+  "name": "pl_ingest_seller_master",
+  "type": "Microsoft.DataFactory/factories/pipelines",
+  "properties": {
+    "description": "Pull the seller master from the on-prem SQL Server (through the SHIR) into a dated bronze Parquet snapshot. Runs daily, not hourly — seller data changes slowly and the join in silver only needs the latest snapshot. Structure: copy through the SHIR with retry and logging -> on failure, alert and fail. Demonstrates the on-prem bridge: the source is reached only via the self-hosted runtime, and the connection string is fetched from Key Vault, never stored here.",
+    "activities": [
+      {
+        "name": "CopyOnPremSellerToBronze",
+        "type": "Copy",
+        "description": "SHIR-brokered read of dbo.seller_master into a snapshot_date-partitioned Parquet folder. Typed columnar output because silver joins against it. A full snapshot each day (not incremental) is deliberate at this table's size — a few thousand rows — because a full copy is trivially cheap and sidesteps the whole class of watermark-drift bugs that incremental loads invite; the incremental predicate is left as a documented option for when the table grows.",
+        "dependsOn": [],
+        "policy": {
+          "timeout": "0.00:30:00",
+          "retry": 3,
+          "retryIntervalInSeconds": 60
+        },
+        "typeProperties": {
+          "source": {
+            "type": "SqlServerSource",
+            "queryTimeout": "0.00:10:00",
+            "partitionOption": "None"
+          },
+          "sink": {
+            "type": "ParquetSink",
+            "storeSettings": {
+              "type": "AzureBlobFSWriteSettings"
+            },
+            "formatSettings": {
+              "type": "ParquetWriteSettings"
+            }
+          },
+          "enableStaging": false,
+          "enableLogging": true,
+          "logSettings": {
+            "enableCopyActivityLog": true,
+            "copyActivityLogSettings": { "logLevel": "Warning" },
+            "logLocationSettings": {
+              "linkedServiceName": {
+                "referenceName": "ls_adls_gen2",
+                "type": "LinkedServiceReference",
+                "parameters": { "storageAccountName": "@pipeline().parameters.storageAccountName" }
+              },
+              "path": "logs/copy/pl_ingest_seller_master"
+            }
+          }
+        },
+        "inputs": [
+          {
+            "referenceName": "ds_onprem_seller_master",
+            "type": "DatasetReference",
+            "parameters": { "keyVaultName": "@pipeline().parameters.keyVaultName" }
+          }
+        ],
+        "outputs": [
+          {
+            "referenceName": "ds_bronze_seller_master",
+            "type": "DatasetReference",
+            "parameters": {
+              "storageAccountName": "@pipeline().parameters.storageAccountName",
+              "snapshot_date": "@pipeline().parameters.snapshot_date"
+            }
+          }
+        ]
+      },
+      {
+        "name": "AlertOnFailure",
+        "type": "WebActivity",
+        "description": "Same two-signal failure handling as the scan pipeline: push a webhook alert, then fail the run.",
+        "dependsOn": [
+          { "activity": "CopyOnPremSellerToBronze", "dependencyConditions": ["Failed"] }
+        ],
+        "policy": { "timeout": "0.00:05:00", "retry": 1, "retryIntervalInSeconds": 15 },
+        "typeProperties": {
+          "url": "@pipeline().parameters.alertWebhookUrl",
+          "method": "POST",
+          "body": {
+            "pipeline": "@{pipeline().Pipeline}",
+            "runId": "@{pipeline().RunId}",
+            "severity": "high",
+            "message": "on-prem seller_master ingest failed after 3 retries (check SHIR health first)"
+          }
+        }
+      },
+      {
+        "name": "FailPipeline",
+        "type": "Fail",
+        "dependsOn": [
+          { "activity": "AlertOnFailure", "dependencyConditions": ["Completed"] }
+        ],
+        "typeProperties": {
+          "message": "seller_master ingest failed for snapshot_date=@{pipeline().parameters.snapshot_date}",
+          "errorCode": "IngestSellerMasterFailed"
+        }
+      }
+    ],
+    "parameters": {
+      "storageAccountName": { "type": "String" },
+      "keyVaultName": { "type": "String" },
+      "snapshot_date": { "type": "String" },
+      "alertWebhookUrl": { "type": "String" }
+    },
+    "annotations": ["ingestion", "bronze", "onprem"]
+  }
+}
