@@ -46,10 +46,63 @@ discarding a row**. Five steps, composed in an order that matters:
 Idempotent by `MERGE` on `scan_id`: replay updates in place, and because the dedup rule is
 deterministic, the merged result is identical however many times a batch is replayed.
 
+## gold_common — the shared lifecycle
+
+Both gold jobs collapse a parcel's scan trail into one lifecycle row (pickup, delivery,
+SLA outcome), so that computation lives in `gold_common.parcel_lifecycle` once. The
+correctness crux, and the reason the whole project exists:
+
+> **delivery is determined by EVENT time, never arrival time.**
+
+A parcel's DELIVERED scan can *arrive* before an earlier hub scan (the injected
+inversion). A naive consumer ordering by arrival — or taking the last-arrived scan as
+"current state" — marks such a parcel delivered at the wrong time, or before its hub-in
+even landed. Because silver repaired ordering and this aggregates on `event_time`, the
+lifecycle is computed on the true sequence. M6 measures exactly what the naive version
+gets wrong.
+
+## 03 — gold ops aggregates
+
+Hourly hub-level health at `(hub_id, event_date, event_hour)`: total scans, distinct
+parcels, failed-attempt count and **rate** (zero-denominator-safe, as its own column),
+**breach-risk parcels** (point-in-time: past 80% of the promised window at this scan and
+not yet delivered), and — the metric this platform exists to expose — **late-arrival and
+out-of-order scan counts**, which make the late-sync hub show up as the hub-shaped hole
+it is. Z-ORDER by `hub_id` because the ops dashboard filters by hub.
+
+## 04 — gold SLA mart
+
+A finance-grade star at parcel grain: `fct_sla` (promised vs actual hours, breach flag,
+exception reason) + `dim_lane`, `dim_hub`, `dim_date`. Lane-daily rollups are a `GROUP
+BY`, not a re-derivation. `dim_date` is built *from the data* so it never has a gap the
+fact needs or a date no fact references. The `is_delivered` count here is the number the
+**M6 control total** reconciles against the lakehouse — if the star and the lakehouse
+disagree on how many parcels were delivered, nothing publishes.
+
+### Time travel
+
+The SLA mart is overwritten each run, and Delta keeps the prior versions — so "what did
+finance's numbers say before today's backfill corrected them?" is a query, not a restore:
+
+```sql
+-- yesterday's breach count vs today's, for the same lane
+SELECT 'today' AS v, count(*) FROM delta.`/gold/sla/fct_sla` WHERE is_breach
+UNION ALL
+SELECT 'prior', count(*) FROM delta.`/gold/sla/fct_sla` VERSION AS OF 0 WHERE is_breach;
+
+-- or read the fact as of a wall-clock time before the correction
+SELECT * FROM delta.`/gold/sla/fct_sla` TIMESTAMP AS OF '2026-06-30 02:00:00';
+```
+
+The practical use: an SLA penalty dispute is answerable — "the number we billed on was
+this version, computed from this data, at this time."
+
 ## Tests (CI, real Spark on JDK 17)
 
-`databricks/tests/` — bronze (nothing dropped, rescue works, arrival-time partitioning)
-and silver (quarantine reasons, the earliest-sync dedup rule, out-of-order flagged not
-hidden, late-arrival threshold, PII hashed + salted + mapping round-trips + raw gone,
-unknown scan type flagged). These run on the `spark` CI job; there's no local JDK in this
-build, so CI is the source of truth for the Spark layer.
+`databricks/tests/` — bronze (nothing dropped, rescue works, arrival-time partitioning),
+silver (quarantine reasons, the earliest-sync dedup rule, out-of-order flagged not hidden,
+late-arrival threshold, PII hashed + salted + mapping round-trips + raw gone, unknown scan
+type flagged), and gold (lifecycle on event time incl. the inversion crux, breach/RTO/
+in-transit outcomes, ops rate zero-safety + breach-risk + late-scan counts, the SLA star's
+parcel grain + lane keys + meaningful-null delivery key + gap-free dim_date). There's no
+local JDK in this build, so CI is the source of truth for the Spark layer.
