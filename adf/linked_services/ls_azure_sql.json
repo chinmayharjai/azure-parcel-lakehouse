@@ -1,0 +1,23 @@
+{
+  "name": "ls_azure_sql",
+  "type": "Microsoft.DataFactory/factories/linkedservices",
+  "properties": {
+    "annotations": [],
+    "description": "The Azure SQL Database holding the SLA reporting mart. Its connection string is fetched from Key Vault at runtime — the mart holds finance data, so the credential is never in a pipeline or parameter file. Used by the serve pipeline's Lookup to count landed rows for the copy-integrity gate.",
+    "type": "AzureSqlDatabase",
+    "typeProperties": {
+      "connectionString": {
+        "type": "AzureKeyVaultSecret",
+        "store": {
+          "referenceName": "ls_keyvault",
+          "type": "LinkedServiceReference",
+          "parameters": { "keyVaultName": "@linkedService().keyVaultName" }
+        },
+        "secretName": "sla-mart-sql-connection-string"
+      }
+    },
+    "parameters": {
+      "keyVaultName": { "type": "String" }
+    }
+  }
+}
